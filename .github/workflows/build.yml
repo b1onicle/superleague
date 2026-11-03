@@ -1,0 +1,97 @@
+
+name: Build SuperLeague
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk zip
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --clean --noconfirm --onefile --windowed --name SuperLeague --collect-all pandas --collect-all openpyxl scripts/main.py
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller --clean --noconfirm --windowed --name SuperLeague --collect-all pandas --collect-all openpyxl scripts/main.py
+
+      - name: Build Linux
+        if: runner.os == 'Linux'
+        run: |
+          pyinstaller --clean --noconfirm --onefile --name SuperLeague --collect-all pandas --collect-all openpyxl scripts/main.py
+
+      - name: Prepare Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mkdir package
+          Copy-Item dist/SuperLeague.exe package/
+          Copy-Item data package/data -Recurse
+          Copy-Item templates package/templates
+          Compress-Archive -Path package/* -DestinationPath SuperLeague-Windows.zip
+
+      - name: Prepare macOS package
+        if: runner.os == 'macOS'
+        run: |
+          mkdir package
+          cp -R dist/SuperLeague.app package/
+          cp -R data package/data
+          cp -R templates package/templates
+          zip -r SuperLeague-macOS.zip package
+
+      - name: Prepare Linux package
+        if: runner.os == 'Linux'
+        run: |
+          mkdir package
+          cp dist/SuperLeague package/
+          cp -R data package/data
+          cp -R templates package/templates
+          zip -r SuperLeague-Linux.zip package
+
+      - name: Upload Windows package
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperLeague-Windows
+          path: SuperLeague-Windows.zip
+
+      - name: Upload macOS package
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperLeague-macOS
+          path: SuperLeague-macOS.zip
+
+      - name: Upload Linux package
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperLeague-Linux
+          path: SuperLeague-Linux.zip
